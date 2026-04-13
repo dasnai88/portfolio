@@ -3,6 +3,7 @@ type SectionHeadingProps = {
   title: string;
   description: string;
   align?: "left" | "center";
+  className?: string;
 };
 
 export function SectionHeading({
@@ -10,20 +11,23 @@ export function SectionHeading({
   title,
   description,
   align = "left",
+  className,
 }: SectionHeadingProps) {
   const isCentered = align === "center";
 
   return (
     <div
-      className={`max-w-3xl ${isCentered ? "mx-auto text-center" : ""}`}
+      className={[
+        "max-w-3xl",
+        isCentered ? "mx-auto text-center" : "",
+        className ?? "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
       <p className="eyebrow">{eyebrow}</p>
-      <h2 className="mt-5 text-3xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-4xl lg:text-[3.15rem]">
-        {title}
-      </h2>
-      <p className="mt-5 text-base leading-7 text-[var(--muted)] sm:text-lg">
-        {description}
-      </p>
+      <h2 className="section-title mt-5 text-balance">{title}</h2>
+      <p className="section-copy mt-6 max-w-2xl text-pretty">{description}</p>
     </div>
   );
 }

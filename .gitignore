@@ -29,6 +29,11 @@ yarn-error.log*
 .pnpm-debug.log*
 .next-dev.log
 .next-dev.err.log
+.next-dev-run.log
+.next-dev-session.log
+.next-dev-session.err.log
+.playwright-cli/
+output/playwright/
 
 # env files
 .env*

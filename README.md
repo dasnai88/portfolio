@@ -1,13 +1,14 @@
 # Portfolio
 
-Личное портфолио на Next.js с упором на product UI, motion polish и one-page showcase.
+Русскоязычное персональное портфолио на Next.js с упором на premium product UI, аккуратный motion и поддерживаемую frontend-архитектуру.
 
 ## Стек
 
-- Next.js
-- React
-- Tailwind CSS
+- Next.js 16
+- React 19
+- Tailwind CSS 4
 - Framer Motion
+- TypeScript
 
 ## Локальный запуск
 
@@ -16,17 +17,34 @@ npm install
 npm run dev
 ```
 
-## Проверка
+## Проверки
 
 ```powershell
 npm run lint
+npm run typecheck
 npm run build
-npm run build:pages
+npm run check
 ```
 
-## GitHub Pages
+## Деплой
 
-Проект публикуется как GitHub Pages project site через GitHub Actions:
+Проект теперь ориентирован на Vercel как основной target.
 
-- репозиторий: `dasnai88/portfolio`
-- URL: `https://dasnai88.github.io/portfolio/`
+Рекомендуемый поток:
+
+```powershell
+vercel link
+vercel pull
+vercel
+vercel --prod
+```
+
+Если нужен корректный `canonical` URL и абсолютные social previews, задайте переменную окружения:
+
+```powershell
+NEXT_PUBLIC_SITE_URL=https://your-domain.vercel.app
+```
+
+## GitHub Actions
+
+В репозитории оставлен только CI workflow, который прогоняет `npm run check` на push и pull request.

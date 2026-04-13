@@ -1,110 +1,199 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { useEffect, useEffectEvent, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
 import { LogoLockup } from "@/components/portfolio/logo-lockup";
-
-type NavItem = {
-  label: string;
-  href: string;
-};
+import type { NavItem } from "@/data/portfolio";
 
 type SiteHeaderProps = {
   name: string;
   items: NavItem[];
+  contactHref: string;
 };
 
-export function SiteHeader({ name, items }: SiteHeaderProps) {
+const ease: [number, number, number, number] = [0.22, 1, 0.36, 1];
+
+export function SiteHeader({ name, items, contactHref }: SiteHeaderProps) {
   const prefersReducedMotion = useReducedMotion();
-  const [activeSection, setActiveSection] = useState<string>("");
+  const [activeSection, setActiveSection] = useState<string>(() => {
+    if (typeof window === "undefined") {
+      return "about";
+    }
+
+    return window.location.hash.replace("#", "") || "about";
+  });
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const updateActiveSection = useEffectEvent(
+    (entries: IntersectionObserverEntry[]) => {
+      const visibleEntry = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((left, right) => right.intersectionRatio - left.intersectionRatio)[0];
+
+      if (visibleEntry?.target.id) {
+        setActiveSection(visibleEntry.target.id);
+      }
+    },
+  );
 
   useEffect(() => {
     const sections = items
-      .map((item) => {
-        const id = item.href.replace("#", "");
-        return document.getElementById(id);
-      })
+      .map((item) => document.getElementById(item.id))
       .filter((section): section is HTMLElement => Boolean(section));
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+    if (sections.length === 0) {
+      return;
+    }
 
-        if (visible?.target.id) {
-          setActiveSection(visible.target.id);
-        }
-      },
-      {
-        rootMargin: "-24% 0px -56% 0px",
-        threshold: [0.15, 0.35, 0.6],
-      },
-    );
+    const observer = new IntersectionObserver(updateActiveSection, {
+      rootMargin: "-30% 0px -52% 0px",
+      threshold: [0.2, 0.4, 0.6],
+    });
 
     sections.forEach((section) => observer.observe(section));
 
-    return () => observer.disconnect();
+    const onHashChange = () => {
+      const currentHash = window.location.hash.replace("#", "");
+      if (currentHash) {
+        setActiveSection(currentHash);
+      }
+    };
+
+    window.addEventListener("hashchange", onHashChange);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("hashchange", onHashChange);
+    };
   }, [items]);
+
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+
+    if (menuOpen) {
+      document.body.style.overflow = "hidden";
+    }
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [menuOpen]);
+
+  const closeMenu = () => setMenuOpen(false);
 
   return (
     <header className="sticky top-0 z-50 pt-4">
-      <div className="section-shell-wide">
-        <div className="surface-panel flex items-center justify-between rounded-full px-4 py-3 sm:px-5">
-          <motion.a
+      <div className="section-shell-wide relative">
+        <div className="header-shell">
+          <a
             href="#top"
-            aria-label={`${name} наверх`}
+            aria-label={`${name}: перейти к началу страницы`}
             className="shrink-0"
-            transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-            whileHover={
-              prefersReducedMotion
-                ? undefined
-                : {
-                    y: -1,
-                    scale: 1.01,
-                    filter: "drop-shadow(0 12px 20px rgba(32,21,15,0.08))",
-                  }
-            }
           >
-            <LogoLockup compact name={name} />
-          </motion.a>
-          <nav aria-label="Primary" className="hidden items-center gap-6 md:flex">
-            {items.map((item) => (
-              <motion.a
-                key={item.href}
-                href={item.href}
-                className={`rounded-full px-2.5 py-1.5 text-sm transition-colors ${
-                  activeSection === item.href.replace("#", "")
-                    ? "bg-white/70 text-[var(--foreground)] shadow-[0_10px_24px_rgba(32,21,15,0.06)]"
-                    : "text-[var(--muted)] hover:text-[var(--foreground)]"
-                }`}
-                transition={{ duration: 0.22 }}
-                whileHover={
-                  prefersReducedMotion
-                    ? undefined
-                    : {
-                        y: -1,
-                        backgroundColor:
-                          activeSection === item.href.replace("#", "")
-                            ? "rgba(255,255,255,0.76)"
-                            : "rgba(255,255,255,0.38)",
-                      }
-                }
-              >
-                {item.label}
-              </motion.a>
-            ))}
+            <LogoLockup compact name={name} variant="inverse" />
+          </a>
+
+          <nav
+            aria-label="Основная навигация"
+            className="hidden items-center gap-2 md:flex"
+          >
+            {items.map((item) => {
+              const isActive = activeSection === item.id;
+
+              return (
+                <a
+                  key={item.id}
+                  href={item.href}
+                  aria-label={item.ariaLabel}
+                  aria-current={isActive ? "page" : undefined}
+                  className={`header-link ${isActive ? "header-link-active" : ""}`}
+                >
+                  {item.label}
+                </a>
+              );
+            })}
           </nav>
-          <motion.a
-            href="#contact"
-            className="rounded-full border border-[var(--line-strong)] px-4 py-2 text-sm font-medium text-[var(--foreground)] hover:border-[var(--accent)] hover:bg-white"
-            transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-            whileHover={prefersReducedMotion ? undefined : { y: -2, boxShadow: "0 14px 26px rgba(32,21,15,0.08)" }}
+
+          <div className="hidden items-center gap-3 md:flex">
+            <a href={contactHref} className="button-secondary">
+              Обсудить задачу
+            </a>
+          </div>
+
+          <button
+            type="button"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--line-strong)] bg-white/[0.06] text-[var(--foreground)] md:hidden"
+            aria-expanded={menuOpen}
+            aria-controls="mobile-navigation"
+            aria-label={menuOpen ? "Закрыть меню" : "Открыть меню"}
+            onClick={() => setMenuOpen((value) => !value)}
           >
-            Связаться
-          </motion.a>
+            <span className="sr-only">{menuOpen ? "Закрыть меню" : "Открыть меню"}</span>
+            <div className="flex flex-col gap-1.5">
+              <span
+                className={`block h-[2px] w-4 rounded-full bg-current transition-transform duration-200 ${
+                  menuOpen ? "translate-y-[4px] rotate-45" : ""
+                }`}
+              />
+              <span
+                className={`block h-[2px] w-4 rounded-full bg-current transition-opacity duration-200 ${
+                  menuOpen ? "opacity-0" : "opacity-100"
+                }`}
+              />
+              <span
+                className={`block h-[2px] w-4 rounded-full bg-current transition-transform duration-200 ${
+                  menuOpen ? "-translate-y-[4px] -rotate-45" : ""
+                }`}
+              />
+            </div>
+          </button>
         </div>
+
+        <AnimatePresence>
+          {menuOpen ? (
+            <motion.div
+              id="mobile-navigation"
+              initial={prefersReducedMotion ? false : { opacity: 0, y: -12 }}
+              animate={prefersReducedMotion ? {} : { opacity: 1, y: 0 }}
+              exit={prefersReducedMotion ? {} : { opacity: 0, y: -10 }}
+              transition={{ duration: 0.24, ease }}
+              className="header-menu absolute inset-x-0 top-[calc(100%+0.75rem)] p-5 md:hidden"
+            >
+              <nav aria-label="Мобильная навигация" className="flex flex-col gap-2">
+                {items.map((item) => {
+                  const isActive = activeSection === item.id;
+
+                  return (
+                    <a
+                      key={item.id}
+                      href={item.href}
+                      aria-label={item.ariaLabel}
+                      aria-current={isActive ? "page" : undefined}
+                      className={`rounded-[1.2rem] px-4 py-3 text-sm transition-colors duration-200 ${
+                        isActive
+                          ? "bg-[var(--accent)] text-[var(--foreground-inverse)]"
+                          : "bg-white/[0.04] text-[var(--foreground)]"
+                      }`}
+                      onClick={closeMenu}
+                    >
+                      {item.label}
+                    </a>
+                  );
+                })}
+              </nav>
+
+              <div className="mt-4 flex flex-col gap-2">
+                <a href={contactHref} className="button-primary" onClick={closeMenu}>
+                  Обсудить задачу
+                </a>
+                <a href="#projects" className="button-secondary" onClick={closeMenu}>
+                  Смотреть кейсы
+                </a>
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
       </div>
     </header>
   );
