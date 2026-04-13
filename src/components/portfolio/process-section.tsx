@@ -1,14 +1,14 @@
 "use client";
 
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import {
   type MotionStyle,
   type MotionValue,
   motion,
   useMotionValue,
-  useMotionValueEvent,
   useReducedMotion,
-  useScroll,
   useTransform,
 } from "framer-motion";
 
@@ -54,6 +54,8 @@ const staticProgressMap: Record<ProcessStep["id"], number> = {
   interface: 0.68,
   final: 0.76,
 };
+
+gsap.registerPlugin(ScrollTrigger);
 
 function clampStage(index: number, length: number) {
   return Math.max(0, Math.min(length - 1, index));
@@ -253,7 +255,7 @@ function CanvasShell({
           <span className="h-2.5 w-2.5 rounded-full bg-[rgba(255,255,255,0.08)]" />
           <span className="h-2.5 w-2.5 rounded-full bg-[rgba(255,255,255,0.08)]" />
           <span className="ml-3 text-[0.68rem] font-mono uppercase tracking-[0.18em] text-[var(--process-muted)]">
-            Сборка интерфейса
+            Производственный слой
           </span>
         </div>
 
@@ -553,11 +555,11 @@ function FinalScene({ progress, compact }: SceneProps) {
               Финальный продукт
             </p>
             <h3 className="mt-2 text-lg font-semibold tracking-[-0.04em] text-[var(--process-text)] sm:text-xl">
-              Портфолио для найма и заказов
+              Готовый интерфейс к запуску
             </h3>
           </div>
           <div className="rounded-full border border-[rgba(255,255,255,0.12)] px-3 py-1 text-[0.62rem] font-mono uppercase tracking-[0.18em] text-[var(--process-text)]">
-            Готово
+            Финальная версия
           </div>
         </div>
 
@@ -566,10 +568,10 @@ function FinalScene({ progress, compact }: SceneProps) {
           style={{ opacity: accentStripOpacity }}
         >
           <div className="rounded-full bg-[rgba(242,157,118,0.18)] px-3 py-1 text-[0.58rem] font-mono uppercase tracking-[0.16em] text-[var(--process-text)]">
-            Найм и заказы
+            Адаптив и сценарии
           </div>
           <div className="rounded-full bg-[rgba(141,162,255,0.14)] px-3 py-1 text-[0.58rem] font-mono uppercase tracking-[0.16em] text-[var(--process-text)]">
-            Чистый motion
+            Тонкая полировка
           </div>
         </motion.div>
 
@@ -788,51 +790,27 @@ export function ProcessSection({
   steps,
 }: ProcessSectionProps) {
   const sequenceRef = useRef<HTMLDivElement | null>(null);
-  const trackRef = useRef<HTMLDivElement | null>(null);
-  const canvasRef = useRef<HTMLDivElement | null>(null);
   const stepRefs = useRef<(HTMLElement | null)[]>([]);
+  const stageStopsRef = useRef<number[]>(getFallbackStageStops(steps.length));
+  const progress = useMotionValue(0);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [canvasStops, setCanvasStops] = useState<number[]>(() =>
-    steps.map((_, index) => index * 320),
-  );
   const [stageStops, setStageStops] = useState<number[]>(() =>
     getFallbackStageStops(steps.length),
   );
   const prefersReducedMotion = useReducedMotion();
 
-  const { scrollYProgress } = useScroll({
-    target: sequenceRef,
-    offset: ["start start", "end end"],
-  });
-
   useEffect(() => {
     const measure = () => {
       const sequence = sequenceRef.current;
-      const track = trackRef.current;
-      const canvas = canvasRef.current;
 
-      if (!sequence || !track || !canvas) {
+      if (!sequence) {
         return;
       }
 
       const sequenceTop = sequence.getBoundingClientRect().top;
-      const trackHeight = track.offsetHeight;
-      const canvasHeight = canvas.offsetHeight;
-      const maxOffset = Math.max(trackHeight - canvasHeight, 0);
       const sequenceHeight = sequence.offsetHeight;
       const viewportHeight = window.innerHeight;
       const maxScrollDistance = Math.max(sequenceHeight - viewportHeight, 1);
-
-      const nextStops = steps.map((_, index) => {
-        const node = stepRefs.current[index];
-        if (!node) {
-          return 0;
-        }
-
-        const top = node.getBoundingClientRect().top - sequenceTop;
-        const centeredOffset = top + node.offsetHeight / 2 - canvasHeight / 2;
-        return Math.max(0, Math.min(maxOffset, centeredOffset));
-      });
 
       const measuredStageStops = normalizeStops(
         steps.map((_, index) => {
@@ -847,7 +825,7 @@ export function ProcessSection({
         }),
       );
 
-      setCanvasStops(nextStops);
+      stageStopsRef.current = measuredStageStops;
       setStageStops(measuredStageStops);
     };
 
@@ -858,13 +836,11 @@ export function ProcessSection({
         ? new ResizeObserver(() => measure())
         : null;
 
-    [sequenceRef.current, trackRef.current, canvasRef.current, ...stepRefs.current].forEach(
-      (node) => {
-        if (node && resizeObserver) {
-          resizeObserver.observe(node);
-        }
-      },
-    );
+    [sequenceRef.current, ...stepRefs.current].forEach((node) => {
+      if (node && resizeObserver) {
+        resizeObserver.observe(node);
+      }
+    });
 
     window.addEventListener("resize", measure);
 
@@ -874,25 +850,50 @@ export function ProcessSection({
     };
   }, [steps]);
 
-  useMotionValueEvent(scrollYProgress, "change", (latest) => {
-    setActiveIndex(getStageIndex(latest, stageStops));
-  });
-
   const effectiveStageStops =
     stageStops.length === steps.length
       ? stageStops
       : getFallbackStageStops(steps.length);
-  const canvasTrackY = useTransform(
-    scrollYProgress,
-    effectiveStageStops,
-    canvasStops,
-  );
+
+  useEffect(() => {
+    stageStopsRef.current = effectiveStageStops;
+  }, [effectiveStageStops, progress]);
+
+  useEffect(() => {
+    if (prefersReducedMotion) {
+      progress.set(0);
+      return;
+    }
+
+    const sequence = sequenceRef.current;
+    if (!sequence) {
+      return;
+    }
+
+    const trigger = ScrollTrigger.create({
+      trigger: sequence,
+      start: "top top",
+      end: "bottom bottom",
+      scrub: true,
+      invalidateOnRefresh: true,
+      onUpdate: (self) => {
+        progress.set(self.progress);
+        setActiveIndex(getStageIndex(self.progress, stageStopsRef.current));
+      },
+    });
+
+    ScrollTrigger.refresh();
+
+    return () => {
+      trigger.kill();
+    };
+  }, [prefersReducedMotion, progress, steps.length]);
 
   return (
     <section className="process-section anchor-section" id="process">
       <div className="section-shell relative">
         <div className="max-w-3xl">
-          <p className="font-mono text-[0.76rem] uppercase tracking-[0.22em] text-[var(--process-accent)]">
+          <p className="eyebrow text-[var(--process-accent)]">
             {eyebrow}
           </p>
           <h2 className="mt-5 text-4xl font-semibold tracking-[-0.05em] text-[var(--process-text)] sm:text-5xl lg:text-[3.6rem]">
@@ -931,7 +932,7 @@ export function ProcessSection({
         </div>
 
         <div
-          className="mt-14 hidden gap-10 lg:grid lg:grid-cols-[0.78fr_1.22fr]"
+          className="relative mt-14 hidden gap-10 lg:grid lg:grid-cols-[0.78fr_1.22fr]"
           ref={sequenceRef}
         >
           <div className="space-y-24 pr-6">
@@ -982,21 +983,21 @@ export function ProcessSection({
             })}
           </div>
 
-          <div className="relative" ref={trackRef}>
-            <motion.div
-              className="absolute inset-x-0 top-0 h-[34rem] xl:h-[38rem]"
-              ref={canvasRef}
-              style={{
-                y: prefersReducedMotion ? canvasTrackY : canvasTrackY,
-              }}
-            >
-              <DesktopSequenceCanvas
-                activeIndex={activeIndex}
-                progress={scrollYProgress}
-                stageStops={effectiveStageStops}
-                steps={steps}
-              />
-            </motion.div>
+          <div className="relative">
+            {prefersReducedMotion ? (
+              <div className="sticky top-28 h-[34rem] xl:h-[38rem]">
+                <SnapshotCanvas step={steps[activeIndex] ?? steps[0]} />
+              </div>
+            ) : (
+              <div className="sticky top-28 h-[34rem] xl:h-[38rem]">
+                <DesktopSequenceCanvas
+                  activeIndex={activeIndex}
+                  progress={progress}
+                  stageStops={effectiveStageStops}
+                  steps={steps}
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>

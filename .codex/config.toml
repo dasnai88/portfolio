@@ -1,0 +1,5 @@
+model = "gpt-5.4"
+approval_policy = "on-request"
+
+[mcp_servers.openaiDeveloperDocs]
+url = "https://developers.openai.com/mcp"
